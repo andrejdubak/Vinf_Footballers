@@ -59,8 +59,9 @@ def get_AND_occurrences(INPUT_occurrences,inputs):
     for i in range(len(inputs)-1):
         current_occurrences=[]
         for occur in final_occurrences:
-            if occur in INPUT_occurrences[inputs[i+1]]:
-                current_occurrences.append(occur)
+            if (inputs[i+1]) in INPUT_occurrences:
+                if occur in INPUT_occurrences[inputs[i+1]]:
+                    current_occurrences.append(occur)
         final_occurrences=current_occurrences
     final_occurrences = sorted(list(dict.fromkeys(final_occurrences)))
     return final_occurrences
@@ -73,6 +74,13 @@ def extract_manager_footballer(page):
         manager="not found" 
     return manager
 
+def transfer_to_cm(height):
+    e_height = height.replace("\"", "").split("\'")
+    foot = e_height[0].replace("\'", "")
+    inch= e_height[1]
+    return str(round((((int(foot)*12+int(inch))*2.54)/100),2))
+
+
 def extract_specs_footballer(player):
     specs= re.findall(r"(?<=>)[^<>]*?(?=</)",player)
     i=3
@@ -81,6 +89,13 @@ def extract_specs_footballer(player):
     pos=specs[i]
     height=specs[i+1]
     weight=specs[i+2]
+    if "\'" in height:
+       height=transfer_to_cm(height)
+    if "\'" in weight:
+        w=weight
+        weight=height
+        height=transfer_to_cm(w)
+      
     return pos, height, weight
 
 def extract_team_season_footballer(page):
@@ -108,10 +123,12 @@ def extract_data_footballer(results, for_matches_season, for_matches_team,player
     
     team, season=extract_team_season_footballer(page)
     
-    result = "         - "+team+" -&- "+season+" -&- "+manager+" -&- "+pos+" -&- "+height+" -&- "+weight
-    result= result.replace("\n", "")
+    result =team+" -&- "+season+" -&- "+manager+" -&- "+pos+" -&- "+height+" -&- "+weight
+    result= "         - "+" ".join(result.replace("\n", "").split())
+    result = re.sub(r'<.*?>', '', result)
 
     name= re.sub(r"\n|&#.*?;|</b>", "",check_name[0]).strip()
+    name = re.sub(r'<.*?>', '', name)
     if name in results.keys():
         results[name].append(result)
     else:
@@ -232,6 +249,7 @@ def print_seasion(value,occurrences_matches):
         value+=" -&- no match"
     print(value)
     print("             + most goals match: "+max_match+"   +Σ: "+ str(max_goals))
+    print("         -----------------------------------------------------------------------------------------------")
 
 def print_results(reorder_results,occurrences_matches):
     for key,values in reorder_results.items():
@@ -250,7 +268,7 @@ if __name__ == '__main__':
     file.close()
 
     #input = input()
-    input = "Neymar"
+    input = "Messina"
     inputs= input.split()
 
     INPUT_occurrences = get_occurrences("index_footballers.csv",inputs,False)
