@@ -1,6 +1,16 @@
 import re
 import csv
-import numpy as np
+
+def setup_csv_reader():
+    import sys
+    maxInt = sys.maxsize
+
+    while True:
+        try:
+            csv.field_size_limit(maxInt)
+            break
+        except OverflowError:
+            maxInt = int(maxInt/10)
 
 def extract_years(value):
     return re.findall("\d+", value.split(" -&- ")[1])[0]
@@ -23,67 +33,98 @@ def get_occurrences(index,inputs,exactly):
         occurrences = dict(filter(lambda item: any(part == item[0] for part in inputs), posting_list.items()))
     else:   
         occurrences = dict(filter(lambda item: any(part in item[0] for part in inputs), posting_list.items()))
-    AND_occurrences={}
+    INPUT_occurrences={}
     for key,value in occurrences.items():
         occurre_pages = value[1:][:-1].split(", ")
         if exactly:
             for i in inputs:
                 if(i == key):
-                    if i in AND_occurrences.keys():
-                        AND_occurrences[i]=AND_occurrences[i]+occurre_pages
+                    if i in INPUT_occurrences.keys():
+                        INPUT_occurrences[i]=INPUT_occurrences[i]+occurre_pages
                     else:
-                        AND_occurrences[i]=occurre_pages
+                        INPUT_occurrences[i]=occurre_pages
                     break
         else:
             for i in inputs:
                 if(i in key):
-                    if i in AND_occurrences.keys():
-                        AND_occurrences[i]=AND_occurrences[i]+occurre_pages
+                    if i in INPUT_occurrences.keys():
+                        INPUT_occurrences[i]=INPUT_occurrences[i]+occurre_pages
                     else:
-                        AND_occurrences[i]=occurre_pages
+                        INPUT_occurrences[i]=occurre_pages
     del posting_list, occurrences
-    return AND_occurrences
+    return INPUT_occurrences
 
-
-path = r'C:\Users\Dubak\Desktop\7.semester\VINF\projekt\data\footballers_matches.xml'
-
-with open(path, 'r') as file:
-    data = file.read()
-file.close()
-#input = input()
-input = "Lionel Messi"
-inputs= input.split()
-
-import sys
-maxInt = sys.maxsize
-
-while True:
-    try:
-        csv.field_size_limit(maxInt)
-        break
-    except OverflowError:
-        maxInt = int(maxInt/10)
-
-
-
-AND_occurrences = get_occurrences("index_footballers.csv",inputs,False)
-
-if len(AND_occurrences)!=0:
-    final_occurrences=AND_occurrences[inputs[0]]
+def get_AND_occurrences(INPUT_occurrences,inputs):
+    final_occurrences=INPUT_occurrences[inputs[0]]
     for i in range(len(inputs)-1):
         current_occurrences=[]
         for occur in final_occurrences:
-            if occur in AND_occurrences[inputs[i+1]]:
+            if occur in INPUT_occurrences[inputs[i+1]]:
                 current_occurrences.append(occur)
         final_occurrences=current_occurrences
-
-    del AND_occurrences
-
     final_occurrences = sorted(list(dict.fromkeys(final_occurrences)))
+    return final_occurrences
+
+def extract_manager_footballer(page):
+    manager=re.findall(r"(?<=Manager:)[\S \s]+?(?=</h3>)",page)
+    if len(manager) !=0:
+        manager= re.sub(r"\n|&#.*?;|</b>", "",manager[0]).strip()
+    else:
+        manager="not found" 
+    return manager
+
+def extract_specs_footballer(player):
+    specs= re.findall(r"(?<=>)[^<>]*?(?=</)",player)
+    i=3
+    if specs[i] not in {"G","F","D","M"}:
+        i=i-1
+    pos=specs[i]
+    height=specs[i+1]
+    weight=specs[i+2]
+    return pos, height, weight
+
+def extract_team_season_footballer(page):
+    title=re.findall(r"(?<=<title>FootballSquads - ).+?(?=<)", page)[0]
+    array_title = re.sub(r"\n|&#.*?;|</b>", "",title).strip().split(" - ",1)
+    team= ' '.join(word for word in array_title[0].split() if len(word)>2)
+    
+    season = array_title[1]
+    season = re.findall(r"\d+", season)
+    if len(season) == 2:
+        s1=season[0]
+        s2=season[1]
+        if len(s2)!=4:
+            s2=s1[0]+s1[1]+s2
+        season=s1+"-"+s2
+    else:
+        season=season[0]
+    return team,season
+
+def extract_data_footballer(results, for_matches_season, for_matches_team,player,check_name,page):
+    
+    manager=extract_manager_footballer(page)
+    
+    pos, height, weight=extract_specs_footballer(player)
+    
+    team, season=extract_team_season_footballer(page)
+    
+    result = "         - "+team+" -&- "+season+" -&- "+manager+" -&- "+pos+" -&- "+height+" -&- "+weight
+    result= result.replace("\n", "")
+
+    name= re.sub(r"\n|&#.*?;|</b>", "",check_name[0]).strip()
+    if name in results.keys():
+        results[name].append(result)
+    else:
+        results[name]=[result]
+
+    for_matches_team.append(team)
+    for_matches_season.append(season)
+
+
+def get_footballers(final_occurrences,pages,input):
     results={}
     for_matches_season=[]
     for_matches_team=[]
-    pages = re.findall(r"<html[\S \s]+?</html>", data)
 
     for occurre_page in final_occurrences:
         page=pages[int(occurre_page)]
@@ -95,70 +136,16 @@ if len(AND_occurrences)!=0:
                 player=p
                 check_name = re.findall(r"(?<=>)[\S ]*?"+input+r"[\S ]*?(?=</td>)",page)
                 if (len(control) !=0) & (len(check_name)!=0): 
-                    specs= re.findall(r"(?<=>)[^<>]*?(?=</)",player)
-                    name= re.sub(r"\n|&#.*?;|</b>", "",check_name[0]).strip()
-                    i=3
-                    if specs[i] not in {"G","F","D","M"}:
-                        i=i-1
-                    pos=specs[i]
-                    height=specs[i+1]
-                    weight=specs[i+2]
-                    title=re.findall(r"(?<=<title>FootballSquads - ).+?(?=<)", page)[0]
-                    array_title = re.sub(r"\n|&#.*?;|</b>", "",title).strip().split(" - ",1)
-                    team= ' '.join(word for word in array_title[0].split() if len(word)>2)
-                    season = array_title[1]
-                    manager=re.findall(r"(?<=Manager:)[\S \s]+?(?=</h3>)",page)
-                    if len(manager) !=0:
-                        manager= re.sub(r"\n|&#.*?;|</b>", "",manager[0]).strip()
-                    else:
-                        manager="not found"
-                    #result = "         - "+team+" - "+season+" - "+manager+" - "+pos+" - "+height+" - "+weight
-                    season = re.findall(r"\d+", season)
-                    if len(season) == 2:
-                        s1=season[0]
-                        s2=season[1]
-                        if len(s2)!=4:
-                            s2=s1[0]+s1[1]+s2
-                        season=s1+"-"+s2
-                    else:
-                        season=season[0]
-                    
-                    result = "         - "+team+" -&- "+season+" -&- "+manager+" -&- "+pos+" -&- "+height+" -&- "+weight
-                    result= result.replace("\n", "")
-                    if name in results.keys():
-                        results[name].append(result)
-                    else:
-                        results[name]=[result]
-                    #print("- "+name+" - "+team+" - "+season+" - "+manager)
-                    # for_matches_team.append(' '.join(word for word in team.split() if len(word)>2))
-                    for_matches_team.append(team)
-                    for_matches_season.append(season)
-    del final_occurrences
+                    extract_data_footballer(results, for_matches_season, for_matches_team,player,check_name,page)   
+    return results, for_matches_season, for_matches_team
 
-    sorted_results = sorted(list(results.items()), key = lambda key : len(key[0]))
-    # reordering to dictionary
-    reorder_results = {ele[0] : ele[1]  for ele in sorted_results}
-
-    unique_f_m_season=list(set(for_matches_season))
-
-    uniques=list(set(for_matches_team))
-    unique_f_m_team=[]
-    for unique in uniques:
-        unique_f_m_team=unique_f_m_team+unique.split()
-
-    occurrences_season = get_occurrences("index_matches.csv",unique_f_m_season,True)
-    AND_occurrences_team = get_occurrences("index_matches.csv",unique_f_m_team,False)
-
-
-    # print(AND_occurrences_team)
+def extract_team_occurrences(uniques,INPUT_occurrences_team):
     occurrences_team={}
     for unique in uniques:
         # print(unique)
         match=[]
-        for key,value in AND_occurrences_team.items():
+        for key,value in INPUT_occurrences_team.items():
             if key in unique:
-                # print(key)
-                # print(value)
                 match.append(value)
         if len(match)!=0:
             occurrences_team[unique]=match[0]
@@ -169,9 +156,29 @@ if len(AND_occurrences)!=0:
                         current_occurrences.append(occur)
                 occurrences_team[unique]=current_occurrences
         del match
-        # print( occurrences_team[unique])
-    # print(occurrences_season)
-    # print(occurrences_team)
+    return occurrences_team
+
+
+def get_team_season_occurrences(for_matches_team,for_matches_season):
+    unique_f_m_season=list(set(for_matches_season))
+
+    uniques=list(set(for_matches_team))
+    unique_f_m_team=[]
+    for unique in uniques:
+        unique_f_m_team=unique_f_m_team+unique.split()
+
+    occurrences_season = get_occurrences("index_matches.csv",unique_f_m_season,True)
+    INPUT_occurrences_team = get_occurrences("index_matches.csv",unique_f_m_team,False)
+
+    del unique_f_m_season, unique_f_m_team
+
+    occurrences_team=extract_team_occurrences(uniques,INPUT_occurrences_team)
+    return occurrences_team,occurrences_season
+
+def get_matches(for_matches_season,for_matches_team):
+    
+    occurrences_team,occurrences_season=get_team_season_occurrences(for_matches_team,for_matches_season)
+
     occurrences_matches={}
     for i in range(len(for_matches_season)):
         season=for_matches_season[i]
@@ -183,49 +190,93 @@ if len(AND_occurrences)!=0:
             for occur in occurrences_season[season]:
                 if occur in occurrences_team[team]:
                     occurrences_matches[key].append(occur)
+    return occurrences_matches
 
-    del for_matches_season,for_matches_team
+def extract_max_match(key,matches,occurrences_matches,season,team):
+    max_match=""
+    max_goals=0
+    if (key in occurrences_matches.keys()):
+        for occurre_page in occurrences_matches[key]:
+            page=pages[int(occurre_page)]
+            title=re.findall(r"(?<=<title>).+?(?=<)", page)[0]
+            if season in title:
+                all_matches=re.findall(r"<tr[\S \s]+?/tr>", page)
+                for raw_match in all_matches:
+                    if team in raw_match:
+                        fromTags=re.findall(r"(?<=>)\n?[^<>\n]*(?=<)",raw_match)
+                        match_sep=' '.join(fromTags).replace("&#160;", "").split()
+                        result= match_sep[len(match_sep)-1]
+                        match=' '.join(match_sep)
+                        if ":" in result:  
+                            final_scores = result.split('(')[0].split(":")
+                            goals=int(final_scores[0])+int(final_scores[1])
+                            if goals>=max_goals:
+                                max_match=match
+                                max_goals=goals
+                        # print(match+"\n")
+                        matches.append(match)
+                del all_matches
+    return max_match,max_goals
+        
 
+def print_seasion(value,occurrences_matches):
+    team,season = extract_team_years(value)
+    key = season +"-&-" +team
+    matches=[]
+    
+    max_match,max_goals=extract_max_match(key,matches,occurrences_matches,season,team)
+
+    if len(matches)!=0:
+        value+=" -&- "+str(len(matches)) 
+    else: 
+        value+=" -&- no match"
+    print(value)
+    print("             + most goals match: "+max_match+"   +Σ: "+ str(max_goals))
+
+def print_results(reorder_results,occurrences_matches):
     for key,values in reorder_results.items():
         print("\n*******************************************************************************************************")
         print(key+":")
         values.sort(key=extract_years)
         for value in values:
-            team,season = extract_team_years(value)
-            key = season +"-&-" +team
-            matches=[]
-            max_match=""
-            max_goals=0
+            print_seasion(value,occurrences_matches)
+
+if __name__ == '__main__': 
+    setup_csv_reader()
+    path = r'C:\Users\Dubak\Desktop\7.semester\VINF\projekt\data\footballers_matches.xml'
+
+    with open(path, 'r') as file:
+        data = file.read()
+    file.close()
+
+    #input = input()
+    input = "Neymar"
+    inputs= input.split()
+
+    INPUT_occurrences = get_occurrences("index_footballers.csv",inputs,False)
+
+    if len(INPUT_occurrences)!=0:
+        
+        final_occurrences_footballers= get_AND_occurrences(INPUT_occurrences,inputs)
+        del INPUT_occurrences
+
+        pages = re.findall(r"<html[\S \s]+?</html>", data)
+
+        results_footballers, for_matches_season, for_matches_team=get_footballers(final_occurrences_footballers,pages,input)
+        del final_occurrences_footballers
+        
+        if len(results_footballers)!=0:
+            sorted_results = sorted(list(results_footballers.items()), key = lambda key : len(key[0]))
+            # reordering to dictionary
+            reorder_results_footballers = {ele[0] : ele[1]  for ele in sorted_results}
+            del results_footballers,sorted_results
+
+            occurrences_matches=get_matches(for_matches_season,for_matches_team)
+            del for_matches_season,for_matches_team
             
-            if (key in occurrences_matches.keys()):
-                for occurre_page in occurrences_matches[key]:
-                    page=pages[int(occurre_page)]
-                    title=re.findall(r"(?<=<title>).+?(?=<)", page)[0]
-                    if season in title:
-                        all_matches=re.findall(r"<tr[\S \s]+?/tr>", page)
-                        for raw_match in all_matches:
-                            if team in raw_match:
-                                fromTags=re.findall(r"(?<=>)\n?[^<>\n]*(?=<)",raw_match)
-                                match_sep=' '.join(fromTags).replace("&#160;", "").split()
-                                result= match_sep[len(match_sep)-1]
-                                match=' '.join(match_sep)
-                                if ":" in result:  
-                                    final_scores = result.split('(')[0].split(":")
-                                    goals=int(final_scores[0])+int(final_scores[1])
-                                    if goals>=max_goals:
-                                        max_match=match
-                                        max_goals=goals
-                                # print(match+"\n")
-                                matches.append(match)
-                        del all_matches
-            if len(matches)!=0:
-                value+=" -&- "+str(len(matches)) 
-            else: 
-                value+=" -&- no match"
-            print(value)
-            print("             + most goals match: "+max_match)
-else:
-    print("             - NO MATCH FOR THIS FOOTBALLER")
-        # break
-    # print(for_matches_season[i])
-    # print(for_matches_team[i])
+            print_results(reorder_results_footballers,occurrences_matches)
+        
+        else:
+            print("             - NO MATCH FOR THIS FOOTBALLER")
+    else:
+        print("             - NO MATCH FOR THIS FOOTBALLER")
