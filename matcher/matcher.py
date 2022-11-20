@@ -109,13 +109,23 @@ def extract_specs_footballer(player):
             i=i-1
         pos=specs[i]
         height=specs[i+1]
-        weight=specs[i+2]
+        try:
+            weight=int(specs[i+2].replace(" ", "")) 
+            if  weight > 150:
+                weight=str(round(weight*0.0625))
+            else:
+                weight=str(weight)
+        except:
+            weight=specs[i+2]
+
         if "\'" in height:
             height=transfer_to_cm(height)
         if "\'" in weight:
             w=weight
             weight=height
             height=transfer_to_cm(w)
+       
+
     else:
         return "","",""
       
@@ -284,6 +294,7 @@ def print_results(reorder_results,occurrences_matches,pages):
 
 if __name__ == '__main__': 
     # print(jellyfish.jaro_distance(u'united', u'utd'))
+    input = input()
     setup_csv_reader()
     path = r'C:\Users\Dubak\Desktop\7.semester\VINF\projekt\data\footballers_matches.xml'
 
@@ -291,8 +302,8 @@ if __name__ == '__main__':
         data = file.read()
     file.close()
 
-    # input = input()
-    input = "ronalde cristiano"
+    
+    # input = "Messi lionel"
     inputs= input.split()
 
     INPUT_occurrences = get_occurrences("index_footballers.csv",inputs,False)
