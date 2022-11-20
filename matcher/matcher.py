@@ -1,5 +1,6 @@
 import re
 import csv
+import jellyfish
 
 def setup_csv_reader():
     import sys
@@ -26,13 +27,28 @@ def read_csv(index):
             posting_list[row[0]]=row[1]
     csv_file.close()
     return posting_list
+
+def compare_strings(string1,string2):
+    accuracy=0.85
+    strings1=string1.lower().split()
+    strings2=string2.lower().split()
+    for s1 in strings1:
+        match=False
+        for s2 in strings2:
+            if (jellyfish.jaro_distance(s1,s2)>accuracy):
+                match=True
+                break
+        if not match:    
+            return False
+    return True
     
 def get_occurrences(index,inputs,exactly):
     posting_list=read_csv(index)
     if exactly:
         occurrences = dict(filter(lambda item: any(part == item[0] for part in inputs), posting_list.items()))
     else:   
-        occurrences = dict(filter(lambda item: any(part in item[0] for part in inputs), posting_list.items()))
+        occurrences = dict(filter(lambda item: any((compare_strings(item[0],part)) for part in inputs), posting_list.items()))
+    
     INPUT_occurrences={}
     for key,value in occurrences.items():
         occurre_pages = value[1:][:-1].split(", ")
@@ -46,7 +62,7 @@ def get_occurrences(index,inputs,exactly):
                     break
         else:
             for i in inputs:
-                if(i in key):
+                if(compare_strings(i,key)):
                     if i in INPUT_occurrences.keys():
                         INPUT_occurrences[i]=INPUT_occurrences[i]+occurre_pages
                     else:
@@ -78,23 +94,30 @@ def transfer_to_cm(height):
     e_height = height.replace("\"", "").split("\'")
     foot = e_height[0].replace("\'", "")
     inch= e_height[1]
-    return str(round((((int(foot)*12+int(inch))*2.54)/100),2))
+    try:
+        return str(round((((int(foot)*12+int(inch))*2.54)/100),2))
+    except:
+        return "couldn't convert"
+    
 
 
 def extract_specs_footballer(player):
-    specs= re.findall(r"(?<=>)[^<>]*?(?=</)",player)
-    i=3
-    if specs[i] not in {"G","F","D","M"}:
-        i=i-1
-    pos=specs[i]
-    height=specs[i+1]
-    weight=specs[i+2]
-    if "\'" in height:
-       height=transfer_to_cm(height)
-    if "\'" in weight:
-        w=weight
-        weight=height
-        height=transfer_to_cm(w)
+    specs= list(filter(None, re.findall(r"(?<=>)[^<>]*?(?=</)",player)))
+    if len(specs)>5:
+        i=3
+        if specs[i] not in {"G","F","D","M"}:
+            i=i-1
+        pos=specs[i]
+        height=specs[i+1]
+        weight=specs[i+2]
+        if "\'" in height:
+            height=transfer_to_cm(height)
+        if "\'" in weight:
+            w=weight
+            weight=height
+            height=transfer_to_cm(w)
+    else:
+        return "","",""
       
     return pos, height, weight
 
@@ -127,7 +150,7 @@ def extract_data_footballer(results, for_matches_season, for_matches_team,player
     result= "         - "+" ".join(result.replace("\n", "").split())
     result = re.sub(r'<.*?>', '', result)
 
-    name= re.sub(r"\n|&#.*?;|</b>", "",check_name[0]).strip()
+    name= re.sub(r"\n|&#.*?;|</b>", "",check_name).strip()
     name = re.sub(r'<.*?>', '', name)
     if name in results.keys():
         results[name].append(result)
@@ -142,17 +165,17 @@ def get_footballers(final_occurrences,pages,input):
     results={}
     for_matches_season=[]
     for_matches_team=[]
-
+    
     for occurre_page in final_occurrences:
         page=pages[int(occurre_page)]
         control = re.findall( r"<h2",page)
         players= re.findall( r"(?<=<tr>)[\S \s]*?(?=</tr)",page)
         player=""
-        for p in players:
-            if input in p: 
-                player=p
-                check_name = re.findall(r"(?<=>)[\S ]*?"+input+r"[\S ]*?(?=</td>)",page)
-                if (len(control) !=0) & (len(check_name)!=0): 
+        for player in players: 
+            check_name = re.findall(r"(?<=>)[^<>]*?(?=</)",player)
+            if len(check_name)>1:
+                check_name=check_name[1]
+                if (len(control) !=0) & (compare_strings(input,check_name.lower())): 
                     extract_data_footballer(results, for_matches_season, for_matches_team,player,check_name,page)   
     return results, for_matches_season, for_matches_team
 
@@ -209,7 +232,7 @@ def get_matches(for_matches_season,for_matches_team):
                     occurrences_matches[key].append(occur)
     return occurrences_matches
 
-def extract_max_match(key,matches,occurrences_matches,season,team):
+def extract_max_match(key,pages,matches,occurrences_matches,season,team):
     max_match=""
     max_goals=0
     if (key in occurrences_matches.keys()):
@@ -236,12 +259,12 @@ def extract_max_match(key,matches,occurrences_matches,season,team):
     return max_match,max_goals
         
 
-def print_seasion(value,occurrences_matches):
+def print_seasion(value,occurrences_matches,pages):
     team,season = extract_team_years(value)
     key = season +"-&-" +team
     matches=[]
     
-    max_match,max_goals=extract_max_match(key,matches,occurrences_matches,season,team)
+    max_match,max_goals=extract_max_match(key,pages,matches,occurrences_matches,season,team)
 
     if len(matches)!=0:
         value+=" -&- "+str(len(matches)) 
@@ -251,15 +274,16 @@ def print_seasion(value,occurrences_matches):
     print("             + most goals match: "+max_match+"   +Σ: "+ str(max_goals))
     print("         -----------------------------------------------------------------------------------------------")
 
-def print_results(reorder_results,occurrences_matches):
+def print_results(reorder_results,occurrences_matches,pages):
     for key,values in reorder_results.items():
         print("\n*******************************************************************************************************")
         print(key+":")
         values.sort(key=extract_years)
         for value in values:
-            print_seasion(value,occurrences_matches)
+            print_seasion(value,occurrences_matches,pages)
 
 if __name__ == '__main__': 
+    # print(jellyfish.jaro_distance(u'united', u'utd'))
     setup_csv_reader()
     path = r'C:\Users\Dubak\Desktop\7.semester\VINF\projekt\data\footballers_matches.xml'
 
@@ -267,17 +291,17 @@ if __name__ == '__main__':
         data = file.read()
     file.close()
 
-    #input = input()
-    input = "Messina"
+    # input = input()
+    input = "ronalde cristiano"
     inputs= input.split()
 
     INPUT_occurrences = get_occurrences("index_footballers.csv",inputs,False)
-
+    
+    # print(INPUT_occurrences)
     if len(INPUT_occurrences)!=0:
         
         final_occurrences_footballers= get_AND_occurrences(INPUT_occurrences,inputs)
         del INPUT_occurrences
-
         pages = re.findall(r"<html[\S \s]+?</html>", data)
 
         results_footballers, for_matches_season, for_matches_team=get_footballers(final_occurrences_footballers,pages,input)
@@ -292,7 +316,7 @@ if __name__ == '__main__':
             occurrences_matches=get_matches(for_matches_season,for_matches_team)
             del for_matches_season,for_matches_team
             
-            print_results(reorder_results_footballers,occurrences_matches)
+            print_results(reorder_results_footballers,occurrences_matches,pages)
         
         else:
             print("             - NO MATCH FOR THIS FOOTBALLER")
