@@ -1,6 +1,8 @@
 import re
 import csv
 import jellyfish
+import time
+
 
 def setup_csv_reader():
     import sys
@@ -29,7 +31,7 @@ def read_csv(index):
     return posting_list
 
 def compare_strings(string1,string2):
-    accuracy=0.85
+    accuracy=0.8
     strings1=string1.lower().split()
     strings2=string2.lower().split()
     for s1 in strings1:
@@ -226,7 +228,7 @@ def get_team_season_occurrences(for_matches_team,for_matches_season):
     return occurrences_team,occurrences_season
 
 def get_matches(for_matches_season,for_matches_team):
-    
+    print("         -Zoradujem futbalistov podla dlzky mena")
     occurrences_team,occurrences_season=get_team_season_occurrences(for_matches_team,for_matches_season)
 
     occurrences_matches={}
@@ -294,37 +296,46 @@ def print_results(reorder_results,occurrences_matches,pages):
 
 if __name__ == '__main__': 
     # print(jellyfish.jaro_distance(u'united', u'utd'))
-    input = input()
+    start=time.time()
+    print("Zadaj meno hladaneho hraca:", end =" ")
+    print("Progress:")
+    # input = input()
     setup_csv_reader()
     path = r'C:\Users\Dubak\Desktop\7.semester\VINF\projekt\data\footballers_matches.xml'
-
+    
+    print("         -Nacitavam subor na citanie")
     with open(path, 'r') as file:
         data = file.read()
     file.close()
 
     
-    # input = "Messi lionel"
+    input = "ronaldo"
     inputs= input.split()
 
     INPUT_occurrences = get_occurrences("index_footballers.csv",inputs,False)
     
     # print(INPUT_occurrences)
     if len(INPUT_occurrences)!=0:
-        
+        print("         -Zistujem pozicie futbalistov z indexu")
         final_occurrences_footballers= get_AND_occurrences(INPUT_occurrences,inputs)
+        
         del INPUT_occurrences
         pages = re.findall(r"<html[\S \s]+?</html>", data)
-
+        print("         -Vytahujem informacie zo suboru o futbalistovi")
         results_footballers, for_matches_season, for_matches_team=get_footballers(final_occurrences_footballers,pages,input)
         del final_occurrences_footballers
         
         if len(results_footballers)!=0:
+            print("         -Zoradujem futbalistov podla dlzky mena")
             sorted_results = sorted(list(results_footballers.items()), key = lambda key : len(key[0]))
-            # reordering to dictionary
+            # reordering to dictionary 
+            
             reorder_results_footballers = {ele[0] : ele[1]  for ele in sorted_results}
+           
             del results_footballers,sorted_results
-
+            
             occurrences_matches=get_matches(for_matches_season,for_matches_team)
+            print(occurrences_matches)
             del for_matches_season,for_matches_team
             
             print_results(reorder_results_footballers,occurrences_matches,pages)
@@ -333,3 +344,5 @@ if __name__ == '__main__':
             print("             - NO MATCH FOR THIS FOOTBALLER")
     else:
         print("             - NO MATCH FOR THIS FOOTBALLER")
+
+    print("Total time: "+ str(round(time.time() - start, 2))+ " s")
