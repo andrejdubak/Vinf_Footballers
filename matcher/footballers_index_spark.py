@@ -6,24 +6,39 @@ from pyspark.sql import SparkSession
 # path to file, from witch we creating index
 path = r'/home/data/footballers_matches.xml'
 
-#*** extracting words from page
 def extract_words(page):
+    """ 
+        Extracting words from page
+        :param page: webpage html
+        :returns: set of unique words from tags from page
+    """
+
     fromTags=re.findall(r"(?<=>)\n?[^<>\n]*(?=<)",page) # we take words only which are inside tags
     text=" ".join(fromTags).replace("\n", "") 
     words=text.split()
     unique_words = set(words)   # making unique list of words
     return unique_words
 
-#*** inserting dictionary of indexes into file
 def insert_into_index(file,posting_list):
+    """ 
+        Inserting dictionary of indexes into file
+        :param file: path to file, into which the posting list going to be inserted
+        :param posting_list: dictionary of words and number of pages, where they are located
+    """
+
     with open(file, 'w', newline='', encoding='utf-8') as csv_file:
         csv_writer = csv.writer(csv_file)
         for key, value in posting_list.items():
             csv_writer.writerow([key, value])
     csv_file.close()
 
-#*** extracting and adding unique words from page into dictionary
 def mapper(page):
+    """ 
+        Extracting and adding unique words from page into dictionary
+        :param page: (number of page, webpage html)
+        :returns: list of dicitionaries of occurences of words in file
+    """
+
     unique_words=extract_words(page[1]) # extracting unique words from page
     title=re.findall(r"(?<=<title>).+?(?=<)",page[1])
     if ("Squads" in title[0]) & (len(re.findall( r"<h2",page[1]))!=0):      # checking into which index the page would be insert
@@ -33,9 +48,14 @@ def mapper(page):
     else:
         return [{},{}]      # or wouldn't be insert anywhere
 
-
-#*** combining dictionaries of index into one dictionary
 def reducer(x, y):
+    """ 
+        Combining dictionaries of index into one dictionary
+        :param x: first dictionary
+        :param y: second dictionary
+        :returns: combined dicionary
+    """
+
     for i in range(2):
         for key,value in y[i].items():  #comparing each index from each dictionary
             if key in x[i].keys():
@@ -44,17 +64,28 @@ def reducer(x, y):
                 x[i][key]=value
     return x
 
-#*** printing time since the search was started
 def print_time(start):
+    """ 
+        Printing time since the search was started
+        :param start: time of the start of program
+    """
+
     print(" -> "+ str(round(time.time() - start, 2))+" s")
 
-#*** printing the information about status of searching
 def information_print(information):
+    """ 
+        Printing the information about status of searching
+        :param information: information, which going to be printed
+    """
+
     print("         - "+information, end=" ")
     print_time(start)
 
-#*** main function
 if __name__ == '__main__':
+    """ 
+        Main function
+    """
+
     start = time.time()
     spark = SparkSession\
         .builder\

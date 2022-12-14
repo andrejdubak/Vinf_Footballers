@@ -2,9 +2,14 @@ import re
 import csv
 import jellyfish
 import time
-
-#*** prepare csv reader to by able to process big files
+path = r'C:\Users\Dubak\Desktop\7.semester\VINF\projekt\data\footballers_matches.xml'
+    # path = r'/home/data/footballers_matches.xml'
+    
 def setup_csv_reader():
+    """ 
+        Prepare csv reader to by able to process big files
+    """
+
     import sys
     maxInt = sys.maxsize
 
@@ -15,17 +20,32 @@ def setup_csv_reader():
         except OverflowError:
             maxInt = int(maxInt/10)
 
-#*** extracting only year value from string
 def extract_years(value):
+    """ 
+        Extracting only year value from string
+        :param value: string with year value in it
+        :returns: year value
+    """
+
     return re.findall("\d+", value.split(" -&- ")[1])[0]
 
-#*** extracting team and year from string
 def extract_team_years(value):
+    """ 
+        Extracting team and year from string
+        :param value: string with year and team values in it
+        :returns: tupple of year and season
+    """
+
     array = value.split(" -&- ")
     return array[0].replace("         - ", ""),array[1]
 
-#*** reading footballers_matches.xml into posting list dictionary
 def read_csv(index):
+    """ 
+        Reading index file into posting list dictionary
+        :param index: path to index
+        :returns: dictionary of indexis
+    """
+
     posting_list={}
     with open(index, 'r') as csv_file:
         reader = csv.reader(csv_file)
@@ -34,8 +54,14 @@ def read_csv(index):
     csv_file.close()
     return posting_list
 
-#*** comparing two strings
-def compare_strings(string1,string2):  
+def compare_strings(string1,string2): 
+    """ 
+        Comparing two strings
+        :param string1: first string, which will be compare
+        :param string1: second string, which will be compare
+        :returns: if the strings match
+    """
+
     strings1=string1.lower().split() #lower case divided into words
     strings2=string2.lower().split()
     for s1 in strings1:
@@ -47,9 +73,15 @@ def compare_strings(string1,string2):
         if not match:    
             return False
     return True
-
-#*** from index file extracting pages on which searching inputs are located     
+   
 def get_occurrences(index,inputs,exactly):
+    """ 
+        Extracting pages from index file on which searching inputs are located 
+        :param index: path to index
+        :param inputs: inputs that have been entered by the user
+        :returns: dictionary containing inputs and pages on which they or similar ones to them are located
+    """
+
     posting_list=read_csv(index)
     if exactly:  # matching only the same words
         occurrences = dict(filter(lambda item: any(part == item[0] for part in inputs), posting_list.items()))
@@ -75,10 +107,17 @@ def get_occurrences(index,inputs,exactly):
                     else:
                         INPUT_occurrences[i]=occurre_pages
     del posting_list, occurrences
-    return INPUT_occurrences     #the result is a dictionary containing inputs and pages on which they or similar ones to them are located
+    return INPUT_occurrences     
 
-#*** reducing dictionary by AND rule
+
 def get_AND_occurrences(INPUT_occurrences,inputs):
+    """ 
+        Reducing dictionary by AND rule
+        :param INPUT_occurrences: dictionary containing inputs and pages on which they or similar ones to them are located
+        :param inputs: inputs that have been entered by the user
+        :returns: list containing the numbers of pages on which all the words from the inputs are found
+    """
+
     final_occurrences=INPUT_occurrences[inputs[0]]
     for i in range(len(inputs)-1):  # for each word in the INPUT_occurrences it is checked
         current_occurrences=[]
@@ -88,10 +127,15 @@ def get_AND_occurrences(INPUT_occurrences,inputs):
                     current_occurrences.append(occur)
         final_occurrences=current_occurrences
     final_occurrences = sorted(list(dict.fromkeys(final_occurrences)))
-    return final_occurrences     # the result is a list containing the numbers of pages on which all the words from the inputs are found
+    return final_occurrences     
 
-#*** extracting manager from page which was training the player
 def extract_manager_footballer(page):
+    """ 
+        Extracting manager from page which was training the player
+        :param page: webpage html
+        :returns: name of manager
+    """
+
     manager=re.findall(r"(?<=Manager:)[\S \s]+?(?=</h3>)",page)
     if len(manager) !=0:
         manager= re.sub(r"\n|&#.*?;|</b>", "",manager[0]).strip()
@@ -99,8 +143,13 @@ def extract_manager_footballer(page):
         manager="not found" 
     return manager
 
-#*** transfering heigh values from foots into cm
 def transfer_to_cm(height):
+    """ 
+        Transfering heigh values from foots into cm
+        :param height: height of player in foot
+        :returns: height of player in cm
+    """
+
     e_height = height.replace("\"", "").split("\'")
     foot = e_height[0].replace("\'", "")
     inch= e_height[1]
@@ -109,8 +158,14 @@ def transfer_to_cm(height):
     except:
         return "couldn't convert"
 
-#*** extracting informations about player from the season
+
 def extract_specs_footballer(player):
+    """ 
+        Extracting informations about player from the season
+        :param player: The tags in which the information about player are located
+        :returns: postion, height and weight of player in that season
+    """
+
     specs= list(filter(None, re.findall(r"(?<=>)[^<>]*?(?=</)",player)))
     if len(specs)>5:     # if the record is intact 
         i=3
@@ -140,8 +195,13 @@ def extract_specs_footballer(player):
       
     return pos, height, weight
 
-#*** extracting team and season from page
 def extract_team_season_footballer(page):
+    """ 
+        Extracting team and season from page
+        :param page: webpage html
+        :returns: team and season, which was player playing
+    """
+
     title=re.findall(r"(?<=<title>FootballSquads - ).+?(?=<)", page)[0]
     array_title = re.sub(r"\n|&#.*?;|</b>", "",title).strip().split(" - ",1)
     team= ' '.join(word for word in array_title[0].split() if len(word)>2)
@@ -158,9 +218,16 @@ def extract_team_season_footballer(page):
         season=season[0]
     return team,season
 
-#*** extracting all information player stats from club at that season from page
+
 def extract_data_footballer(results, for_matches_season, for_matches_team,player,check_name,page):
-    
+    """ 
+        Extracting all information player stats from club at that season from page
+        :param results: dictionary consist of players which match with searched one
+        :param player: The tags in which the information about player are located
+        :param check_name: The name of player
+        :param club: information about club from that season
+    """
+
     manager=extract_manager_footballer(page)
     
     pos, height, weight=extract_specs_footballer(player)
@@ -181,8 +248,15 @@ def extract_data_footballer(results, for_matches_season, for_matches_team,player
     for_matches_team.append(team)
     for_matches_season.append(season)
 
-#*** getting informations about players get from index
 def get_footballers(final_occurrences,pages,input):
+    """ 
+        Getting informations about players get from index
+        :param final_occurrences: numbers of pages, where players are located
+        :param pages: list of webpages html
+        :param imput: input from user
+        :returns: dictionary of footballers, list of matches and teams 
+    """
+
     results={}
     for_matches_season=[]
     for_matches_team=[]
@@ -198,10 +272,16 @@ def get_footballers(final_occurrences,pages,input):
                 check_name=check_name[1]
                 if (len(control) !=0) & (compare_strings(input,check_name.lower())): 
                     extract_data_footballer(results, for_matches_season, for_matches_team,player,check_name,page)   
-    return results, for_matches_season, for_matches_team     # the result is dictionary of footballers, list of matches and teams 
+    return results, for_matches_season, for_matches_team     
 
-#*** reducing dictionary by AND rule
 def extract_team_occurrences(uniques,INPUT_occurrences_team):
+    """ 
+        Reducing dictionary by AND rule
+        :param uniques: unique list of teams
+        :param INPUT_occurrences_team: teams occurence pages
+        :returns: list containing the numbers of pages on which all the words from the uniques are found
+    """
+
     occurrences_team={}
     for unique in uniques:  # for each word in the INPUT_occurrences it is checked
         match=[]
@@ -217,10 +297,16 @@ def extract_team_occurrences(uniques,INPUT_occurrences_team):
                         current_occurrences.append(occur)
                 occurrences_team[unique]=current_occurrences
         del match
-    return occurrences_team     # the result is a list containing the numbers of pages on which all the words from the uniques are found
+    return occurrences_team     
 
-#*** getting occurencess of teams and seasons separately
 def get_team_season_occurrences(for_matches_team,for_matches_season):
+    """ 
+        Getting occurencess of teams and seasons separately
+        :param for_matches_team: list of teams of player
+        :param for_matches_season: list of seasons of player
+        :returns: numbers of page where teams and seasons are located
+    """
+
     unique_f_m_season=list(set(for_matches_season)) # unique list of season
 
     uniques=list(set(for_matches_team))
@@ -236,8 +322,13 @@ def get_team_season_occurrences(for_matches_team,for_matches_season):
     occurrences_team=extract_team_occurrences(uniques,INPUT_occurrences_team)    # reducing list dictionary of tems by AND rule
     return occurrences_team,occurrences_season
 
-#*** getting occurencess pages of matches of searched player
 def get_matches(for_matches_season,for_matches_team):
+    """ 
+        Getting occurencess pages of matches of searched player
+        :param for_matches_team: list of teams of player
+        :param for_matches_season: list of seasons of player
+        :returns: list of occurencces of season, the player played
+    """
     occurrences_team,occurrences_season=get_team_season_occurrences(for_matches_team,for_matches_season)  # extracting occurencess of teams and seasons separately
 
     occurrences_matches={}
@@ -251,10 +342,21 @@ def get_matches(for_matches_season,for_matches_team):
             for occur in occurrences_season[season]:
                 if occur in occurrences_team[team]:
                     occurrences_matches[key].append(occur)
-    return occurrences_matches  # the result is a list of occurencces of season, the player played
+    return occurrences_matches  
 
-#*** extracting information about season and club from web page
+
 def extract_max_match(key,pages,matches,occurrences_matches,season,team):
+    """ 
+        Extracting information about season and club from web page
+        :param key: key for dictionary
+        :param pages: list of webpages html
+        :param matches: dictionary of matches
+        :param occurrences_matches: dictionary of pages, where matches are located
+        :param season: searched season
+        :param team: searched team
+        :returns: stats and count of gola from the most score goal match
+    """
+
     max_match=""
     max_goals=0
     if (key in occurrences_matches.keys()):
@@ -279,8 +381,14 @@ def extract_max_match(key,pages,matches,occurrences_matches,season,team):
                 del all_matches
     return max_match,max_goals
         
-#*** printing gained information about matches off player
+
 def print_seasion(value,occurrences_matches,pages):
+    """ 
+        Printing gained information about matches off player
+        :param value: info about player from season
+        :param occurrences_matches: dictionary of matches
+        :param pages: webpages hmtl
+    """
     team,season = extract_team_years(value)
     key = season +"-&-" +team
     matches=[]
@@ -295,8 +403,13 @@ def print_seasion(value,occurrences_matches,pages):
     print("             + most goals match: "+max_match+"   +Sum: "+ str(max_goals))
     print("         -----------------------------------------------------------------------------------------------")
 
-#*** printig all players with match searched player
 def print_results(reorder_results,occurrences_matches,pages):
+    """ 
+        Printig all players with match searched player
+        :param footballers: dictionary of players
+        :param matches: dictionary of matches
+    """
+
     for key,values in reorder_results.items():
         print("\n*******************************************************************************************************")
         print(key+":")
@@ -304,22 +417,31 @@ def print_results(reorder_results,occurrences_matches,pages):
         for value in values:
             print_seasion(value,occurrences_matches,pages)  # also printing the season of player, which he was playing
 
-#*** printing time since the search was started
 def print_time(start):
+    """ 
+        Printing time since the search was started
+        :param start: time of the start of program
+    """
+
     print(" -> "+ str(round(time.time() - start, 2))+" s")
 
-#*** printing the information about status of searching
 def information_print(information):
+    """ 
+        Printing the information about status of searching
+        :param information: information, which going to be printed
+    """
+
     print("         - "+information, end=" ")
     print_time(start)
 
-#*** main function
 if __name__ == '__main__': 
-    
+    """ 
+        Main function
+    """
+
     accuracy = 0.85
     setup_csv_reader()
-    path = r'C:\Users\Dubak\Desktop\7.semester\VINF\projekt\data\footballers_matches.xml'
-    # path = r'/home/data/footballers_matches.xml'
+    
     print("\nName of searched player: ", end =" ")
     input = input() 
     start=time.time()

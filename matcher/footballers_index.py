@@ -6,16 +6,28 @@ import time
 path = r'C:\Users\Dubak\Desktop\7.semester\VINF\projekt\data\footballers_matches.xml'
 # path = r'/home/data/footballers_matches.xml'
 
-#*** extracting words from page
 def extract_words(page):
+    """ 
+        Extracting words from page
+        :param page: webpage html
+        :returns: set of unique words from tags from page
+    """
+
     fromTags=re.findall(r"(?<=>)\n?[^<>\n]*(?=<)",page) # we take words only which are inside tags
     text=" ".join(fromTags).replace("\n", "") 
     words=text.split()
     unique_words = set(words)   # making unique list of words
     return unique_words
 
-#*** inserting page into dictionary
 def insert_into_posting(posting_list,page,counter):
+    """ 
+        Inserting dictionary of indexes into posting dicitonary
+        :param posting_list: dictionary into which the words going to be inserted
+        :param page: webpage html
+        :param counter: number of page
+        :returns: dictionary of occurancces of words in file
+    """
+
     unique_words=extract_words(page)    # dividing page into unigue words
     for unique_word in unique_words:    # each word is insert into posting list
         if unique_word in posting_list.keys():
@@ -24,25 +36,43 @@ def insert_into_posting(posting_list,page,counter):
             posting_list[unique_word]={counter}
     return posting_list
 
-#*** inserting dictionary of indexes into file
+
 def insert_into_index(file,posting_list):
+    """ 
+        Inserting dictionary of indexes into file
+        :param file: path to file, into which the posting list going to be inserted
+        :param posting_list: dictionary of words and number of pages, where they are located
+    """
+
     with open(file, 'w', newline='', encoding='utf-8') as csv_file:
         csv_writer = csv.writer(csv_file)
         for key, value in posting_list.items():
             csv_writer.writerow([key, value])
     csv_file.close()
     
-#*** printing time since the search was started
 def print_time(start):
+    """ 
+        Printing time since the search was started
+        :param start: time of the start of program
+    """
+
     print(" -> "+ str(round(time.time() - start, 2))+" s")
 
-#*** printing the information about status of searching
 def information_print(information):
+    """ 
+        Printing the information about status of searching
+        :param information: information, which going to be printed
+    """
+
     print("         - "+information, end=" ")
     print_time(start)
 
-#*** main function
+
 if __name__ == '__main__':
+    """ 
+        Main function
+    """
+
     print("Progress:")
     start = time.time()
     information_print("1|5 Opening footballers_matches.xml for reading")
